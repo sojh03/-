@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
 const CATEGORIES = ['노트북/PC', '스마트폰', '태블릿', '카메라', '오디오', '게임/콘솔', '주변기기', '기타'];
-const CONDITIONS = ['미개봉', '거의새것', '중고'];
+const CONDITIONS = ['미개봉', '중고'];
 const TRADE_TYPES = ['직거래', '택배', '상관없음'];
 
 export default function BoardCreate() {

@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
 
     const posts = await ProductPost.find(query)
       .populate('author', 'userId profileImage')
-      .sort({ bumpedAt: -1 });
+      .sort({ createdAt: -1 });
     res.json(posts);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -130,10 +130,12 @@ router.post('/:id/like', authMiddleware, async (req, res) => {
     if (!post) return res.status(404).json({ message: 'Post not found' });
     const uid = req.user.id;
     const idx = post.likes.findIndex(l => String(l) === uid);
-    if (idx === -1) post.likes.push(uid);
-    else            post.likes.splice(idx, 1);
-    await post.save();
-    res.json({ liked: idx === -1, likeCount: post.likes.length });
+    const update = idx === -1
+      ? { $addToSet: { likes: uid } }
+      : { $pull: { likes: uid } };
+    // findByIdAndUpdate를 사용해 createdAt/bumpedAt 변경 없이 likes만 수정
+    const updated = await ProductPost.findByIdAndUpdate(req.params.id, update, { new: true });
+    res.json({ liked: idx === -1, likeCount: updated.likes.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
