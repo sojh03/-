@@ -44,6 +44,9 @@ export default function Navbar() {
                 <Link to="/create" className="text-textmain font-medium hover:text-primary transition-colors">
                   판매하기
                 </Link>
+                <Link to="/wishlist" className="text-textmain font-medium hover:text-primary transition-colors">
+                  🤍 찜 목록
+                </Link>
                 <Link to="/chat" className="relative text-textmain font-medium hover:text-primary transition-colors">
                   💬 채팅
                   {unreadCount > 0 && (

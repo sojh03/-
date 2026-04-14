@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const User = require('../models/User');
 const ProductPost = require('../models/ProductPost');
+const Review = require('../models/Review');
 
 const router = express.Router();
 // [VULN] JWT Weak Secret: 추측하기 쉬운 단순 문자열 사용
@@ -159,6 +160,21 @@ router.put('/change-security', authMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// 판매자 공개 프로필
+router.get('/users/:userId', async (req, res) => {
+  try {
+    const user = await User.findOne({ userId: req.params.userId }).select('-password -securityAnswer');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const posts = await ProductPost.find({ author: user._id, status: { $ne: 'Hidden' } })
+      .sort({ bumpedAt: -1 }).select('title price status imagePath imagePaths category createdAt views likes');
+    const reviews = await Review.find({ reviewee: user._id })
+      .populate('reviewer', 'userId profileImage').populate('post', 'title').sort({ createdAt: -1 });
+    const avg = reviews.length
+      ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
+    res.json({ user, posts, reviews, reviewAverage: avg });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── 관리자 전용 미들웨어 ──────────────────────────────

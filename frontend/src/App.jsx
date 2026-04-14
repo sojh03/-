@@ -12,6 +12,8 @@ import AdminPanel from './pages/AdminPanel';
 import ChatList from './pages/ChatList';
 import ChatRoom from './pages/ChatRoom';
 import MyPage from './pages/MyPage';
+import SellerProfile from './pages/SellerProfile';
+import WishlistPage from './pages/WishlistPage';
 
 function App() {
   return (
@@ -30,6 +32,8 @@ function App() {
           <Route path="/chat" element={<ChatList />} />
           <Route path="/chat/:roomId" element={<ChatRoom />} />
           <Route path="/mypage" element={<MyPage />} />
+          <Route path="/seller/:userId" element={<SellerProfile />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
         </Routes>
       </div>
     </div>

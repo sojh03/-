@@ -21,13 +21,17 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, 'uploads')));
 
-const authRoutes = require('./routes/auth');
+const authRoutes  = require('./routes/auth');
 const boardRoutes = require('./routes/board');
-const chatRoutes = require('./routes/chat');
+const chatRoutes  = require('./routes/chat');
+const reviewRoutes = require('./routes/review');
+const reportRoutes = require('./routes/report');
 
-app.use('/api/auth', authRoutes);
-app.use('/api/board', boardRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/auth',   authRoutes);
+app.use('/api/board',  boardRoutes);
+app.use('/api/chat',   chatRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.get('/health', (req, res) => res.send('OK'));
 
