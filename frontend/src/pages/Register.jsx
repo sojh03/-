@@ -38,7 +38,7 @@ export default function Register() {
     <div className="flex justify-center mt-10">
       <div className="glass p-10 rounded-2xl w-[400px]">
         <h2 className="text-3xl font-bold mb-2 text-center text-textmain">계정 생성</h2>
-        <p className="text-center text-textmuted mb-8">IT 중고장터에 가입하세요</p>
+        <p className="text-center text-textmuted mb-8">넌 이런게 사고싶냐에 가입하세요</p>
         <form onSubmit={handleRegister} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-textmuted mb-1">아이디</label>
