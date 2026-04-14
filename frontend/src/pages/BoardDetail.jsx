@@ -223,14 +223,16 @@ export default function BoardDetail() {
                 )}
               </div>
 
-              {!isAuthor && token && (
+              {token && (
                 <div className="mt-4 flex gap-2">
                   <button onClick={handleLike}
                     className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all border ${liked ? 'bg-red-50 text-red-500 border-red-200 hover:bg-red-100' : 'bg-white text-textmuted border-gray-200 hover:border-red-200 hover:text-red-400'}`}>
                     {liked ? '♥ 찜 취소' : '♡ 찜하기'}
                   </button>
-                  <button onClick={() => setShowReportModal(true)}
-                    className="px-4 py-2.5 rounded-xl font-bold text-xs text-gray-400 border border-gray-200 hover:bg-gray-50 transition-all">신고</button>
+                  {!isAuthor && (
+                    <button onClick={() => setShowReportModal(true)}
+                      className="px-4 py-2.5 rounded-xl font-bold text-xs text-gray-400 border border-gray-200 hover:bg-gray-50 transition-all">신고</button>
+                  )}
                 </div>
               )}
 
