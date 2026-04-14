@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api, UPLOADS_BASE } from '../api';
 
-const STATUS_LABEL = { SoldOut: '판매완료', Reserved: '예약중', Hidden: '숨김', Active: '판매중' };
-const STATUS_COLOR = { SoldOut: 'bg-gray-200 text-gray-600', Reserved: 'bg-yellow-100 text-yellow-700', Active: 'bg-green-100 text-green-700', Hidden: 'bg-red-100 text-red-600' };
+const STATUS_LABEL = { SoldOut: '판매완료', Reserved: '예약중', Hidden: '숨김', OnSale: '판매중' };
+const STATUS_COLOR = { SoldOut: 'bg-gray-200 text-gray-600', Reserved: 'bg-yellow-100 text-yellow-700', OnSale: 'bg-green-100 text-green-700', Hidden: 'bg-red-100 text-red-600' };
 
 function StarRow({ rating }) {
   return (
