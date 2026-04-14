@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const User = require('../models/User');
+const ProductPost = require('../models/ProductPost');
 
 const router = express.Router();
 // [VULN] JWT Weak Secret: 추측하기 쉬운 단순 문자열 사용
@@ -71,6 +72,10 @@ router.post('/login', async (req, res) => {
     if (!user) {
       console.log(`[DEBUG] Login failed: User ${userId} not found or password mismatch.`);
       return res.status(400).json({ message: 'Invalid credentials' });
+    }
+    if (user.isBanned) {
+      console.log(`[DEBUG] Login blocked: User ${userId} is banned.`);
+      return res.status(403).json({ message: '로그인이 제한된 계정입니다. 관리자에게 문의하세요.' });
     }
     // [VULN] JWT No Expiration: expiresIn 제거로 토큰 영구 유효
     const token = jwt.sign(
@@ -151,6 +156,85 @@ router.put('/change-security', authMiddleware, async (req, res) => {
     user.securityAnswer = newSecurityAnswer;
     await user.save();
     res.json({ message: '보안 답변이 변경되었습니다' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 관리자 전용 미들웨어 ──────────────────────────────
+const adminOnly = (req, res, next) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ message: 'Admins only' });
+  next();
+};
+
+// 전체 유저 목록 조회
+router.get('/admin/users', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password').lean();
+    const postCounts = await ProductPost.aggregate([
+      { $group: { _id: '$author', count: { $sum: 1 } } }
+    ]);
+    const countMap = Object.fromEntries(postCounts.map(p => [String(p._id), p.count]));
+    const result = users.map(u => ({ ...u, postCount: countMap[String(u._id)] || 0 }));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 밴 / 언밴 토글
+router.put('/admin/users/:id/ban', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'Admin') return res.status(400).json({ message: '관리자 계정은 밴할 수 없습니다' });
+    user.isBanned = !user.isBanned;
+    await user.save();
+    res.json({ isBanned: user.isBanned, message: user.isBanned ? '계정이 제한되었습니다' : '제한이 해제되었습니다' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 역할 변경 (User ↔ Admin)
+router.put('/admin/users/:id/role', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (String(user._id) === req.user.id) return res.status(400).json({ message: '자신의 역할은 변경할 수 없습니다' });
+    user.role = user.role === 'Admin' ? 'User' : 'Admin';
+    await user.save();
+    res.json({ role: user.role });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 비밀번호 초기화
+router.put('/admin/users/:id/reset-password', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ message: '새 비밀번호를 입력하세요' });
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.password = newPassword;
+    await user.save();
+    res.json({ message: '비밀번호가 초기화되었습니다' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 유저 삭제
+router.delete('/admin/users/:id', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (String(user._id) === req.user.id) return res.status(400).json({ message: '자신의 계정은 삭제할 수 없습니다' });
+    if (user.role === 'Admin') return res.status(400).json({ message: '관리자 계정은 삭제할 수 없습니다' });
+    await ProductPost.deleteMany({ author: user._id });
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: '계정과 게시글이 삭제되었습니다' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

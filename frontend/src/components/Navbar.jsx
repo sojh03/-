@@ -54,6 +54,9 @@ export default function Navbar() {
                 </Link>
                 {role === 'Admin' && (
                   <>
+                    <Link to="/admin" className="text-red-600 font-medium hover:text-red-800 transition-colors">
+                      관리자 패널
+                    </Link>
                     <Link to="/admin-create" className="text-red-600 font-medium hover:text-red-800 transition-colors">
                       관리자 생성
                     </Link>

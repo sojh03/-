@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import FindPassword from './pages/FindPassword';
 import CreateAdmin from './pages/CreateAdmin';
+import AdminPanel from './pages/AdminPanel';
 import ChatList from './pages/ChatList';
 import ChatRoom from './pages/ChatRoom';
 import MyPage from './pages/MyPage';
@@ -24,6 +25,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/admin-create" element={<CreateAdmin />} />
+          <Route path="/admin" element={<AdminPanel />} />
           <Route path="/find-password" element={<FindPassword />} />
           <Route path="/chat" element={<ChatList />} />
           <Route path="/chat/:roomId" element={<ChatRoom />} />
