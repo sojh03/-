@@ -6,7 +6,10 @@ export default function BoardDetail() {
   const { id } = useParams();
   const [post, setPost] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ title: '', content: '', price: '' });
+  const [editForm, setEditForm] = useState({ title: '', content: '', price: '', category: '기타', condition: '중고', tradeType: '상관없음' });
+  const [editImageFiles, setEditImageFiles] = useState([]);
+  const [editImagePreviews, setEditImagePreviews] = useState([]);
+  const [editRemainingPaths, setEditRemainingPaths] = useState([]);
   const [imgIndex, setImgIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -25,7 +28,8 @@ export default function BoardDetail() {
     api.get(`/board/${id}`).then(res => {
       const p = res.data;
       setPost(p);
-      setEditForm({ title: p.title, content: p.content, price: p.price });
+      setEditForm({ title: p.title, content: p.content, price: p.price, category: p.category || '기타', condition: p.condition || '중고', tradeType: p.tradeType || '상관없음' });
+      setEditRemainingPaths(p.imagePaths?.length > 0 ? p.imagePaths : p.imagePath ? [p.imagePath] : []);
       setLikeCount(p.likes?.length || 0);
       if (token) {
         api.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } }).then(me => {
@@ -52,12 +56,33 @@ export default function BoardDetail() {
 
   const handleEditSubmit = async () => {
     try {
-      const res = await api.put(`/board/${id}`, {
-        title: editForm.title, content: editForm.content, price: Number(editForm.price)
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      setPost(res.data); setIsEditing(false);
+      const data = new FormData();
+      data.append('title', editForm.title);
+      data.append('content', editForm.content);
+      data.append('price', editForm.price);
+      data.append('category', editForm.category);
+      data.append('condition', editForm.condition);
+      data.append('tradeType', editForm.tradeType);
+      data.append('remainingPaths', JSON.stringify(editRemainingPaths));
+      editImageFiles.forEach(f => data.append('images', f));
+      const res = await api.put(`/board/${id}`, data, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      setPost(res.data);
+      setEditRemainingPaths(res.data.imagePaths || []);
+      setEditImageFiles([]);
+      setEditImagePreviews([]);
+      setIsEditing(false);
       alert('게시글이 수정되었습니다.');
     } catch (err) { alert(err.response?.data?.message || '수정 실패'); }
+  };
+
+  const cancelEdit = () => {
+    setEditForm({ title: post.title, content: post.content, price: post.price, category: post.category || '기타', condition: post.condition || '중고', tradeType: post.tradeType || '상관없음' });
+    setEditRemainingPaths(post.imagePaths?.length > 0 ? post.imagePaths : post.imagePath ? [post.imagePath] : []);
+    setEditImageFiles([]);
+    setEditImagePreviews([]);
+    setIsEditing(false);
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -155,26 +180,75 @@ export default function BoardDetail() {
         {/* 내용 영역 */}
         <div className="md:w-1/2 p-8 lg:p-10 flex flex-col">
           {isEditing ? (
-            <div className="flex flex-col gap-4 flex-1">
+            <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
               <div>
-                <label className="block text-xs font-bold text-textmuted uppercase tracking-wider mb-1">제목</label>
-                <input className="w-full border border-gray-200 rounded-lg p-3 text-textmain outline-none focus:border-primary transition-all"
+                <label className="block text-xs font-bold text-textmuted uppercase tracking-wider mb-1">상품명</label>
+                <input className="w-full border border-gray-200 rounded-lg p-2.5 text-textmain outline-none focus:border-primary transition-all text-sm"
                   value={editForm.title} onChange={e => setEditForm(p => ({ ...p, title: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-textmuted uppercase tracking-wider mb-1">가격 (₩)</label>
-                <input type="number" className="w-full border border-gray-200 rounded-lg p-3 text-textmain outline-none focus:border-primary transition-all"
+                <input type="number" className="w-full border border-gray-200 rounded-lg p-2.5 text-textmain outline-none focus:border-primary transition-all text-sm"
                   value={editForm.price} onChange={e => setEditForm(p => ({ ...p, price: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[['카테고리', 'category', ['노트북/PC','스마트폰','태블릿','카메라','오디오','게임/콘솔','주변기기','기타']],
+                  ['상태', 'condition', ['미개봉','중고']],
+                  ['거래방식', 'tradeType', ['직거래','택배','상관없음']]
+                ].map(([label, key, opts]) => (
+                  <div key={key}>
+                    <label className="block text-xs font-bold text-textmuted uppercase tracking-wider mb-1">{label}</label>
+                    <select className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:border-primary bg-white"
+                      value={editForm[key]} onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}>
+                      {opts.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-textmuted uppercase tracking-wider mb-1">사진</label>
+                {/* 기존 이미지 */}
+                {editRemainingPaths.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {editRemainingPaths.map((path, i) => (
+                      <div key={i} className="relative group">
+                        <img src={`${UPLOADS_BASE}/${path}`} alt="" className="w-14 h-14 object-cover rounded-lg border border-gray-200" />
+                        <button type="button" onClick={() => setEditRemainingPaths(p => p.filter((_, j) => j !== i))}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                        {i === 0 && <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-primary/80 text-white rounded-b-lg py-0.5">대표</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* 새 이미지 추가 */}
+                <input type="file" accept="image/*" multiple
+                  className="w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                  onChange={e => {
+                    const files = Array.from(e.target.files).slice(0, 5 - editRemainingPaths.length);
+                    setEditImageFiles(files);
+                    setEditImagePreviews(files.map(f => URL.createObjectURL(f)));
+                  }} />
+                {editImagePreviews.length > 0 && (
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {editImagePreviews.map((src, i) => (
+                      <div key={i} className="relative group">
+                        <img src={src} alt="" className="w-14 h-14 object-cover rounded-lg border border-gray-200 opacity-80" />
+                        <button type="button" onClick={() => { setEditImageFiles(p => p.filter((_, j) => j !== i)); setEditImagePreviews(p => p.filter((_, j) => j !== i)); }}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                        <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-green-500/80 text-white rounded-b-lg py-0.5">새 이미지</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex-1">
                 <label className="block text-xs font-bold text-textmuted uppercase tracking-wider mb-1">상세 설명</label>
-                <textarea className="w-full border border-gray-200 rounded-lg p-3 text-textmain outline-none focus:border-primary transition-all resize-none h-40"
+                <textarea className="w-full border border-gray-200 rounded-lg p-2.5 text-textmain outline-none focus:border-primary transition-all resize-none h-28 text-sm"
                   value={editForm.content} onChange={e => setEditForm(p => ({ ...p, content: e.target.value }))} />
               </div>
-              <div className="flex gap-2 mt-2">
-                <button onClick={handleEditSubmit} className="flex-1 bg-primary text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition-colors">저장하기</button>
-                <button onClick={() => { setEditForm({ title: post.title, content: post.content, price: post.price }); setIsEditing(false); }}
-                  className="flex-1 border border-gray-200 text-textmuted font-bold py-2 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+              <div className="flex gap-2">
+                <button onClick={handleEditSubmit} className="flex-1 bg-primary text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">저장하기</button>
+                <button onClick={cancelEdit} className="flex-1 border border-gray-200 text-textmuted font-bold py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm">취소</button>
               </div>
             </div>
           ) : (

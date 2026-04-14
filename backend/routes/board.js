@@ -94,19 +94,30 @@ router.get('/:id', optionalAuth, async (req, res) => {
 });
 
 // ── 게시글 수정 ───────────────────────────────────────
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware,
+  upload.fields([{ name: 'images', maxCount: 5 }]),
+  async (req, res) => {
   try {
     const post = await ProductPost.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Post not found' });
     // [VULN] IDOR: 소유권 검사 없음
-    const { title, content, price, status, category, condition, tradeType } = req.body;
+    const { title, content, price, status, category, condition, tradeType, remainingPaths } = req.body;
     if (title !== undefined)     post.title     = title;
     if (content !== undefined)   post.content   = content;
-    if (price !== undefined)     post.price     = price;
+    if (price !== undefined)     post.price     = Number(price);
     if (status !== undefined)    post.status    = status;
     if (category !== undefined)  post.category  = category;
     if (condition !== undefined) post.condition = condition;
     if (tradeType !== undefined) post.tradeType = tradeType;
+
+    // 이미지 수정: 기존 유지 목록 + 새 업로드 합치기
+    if (remainingPaths !== undefined || req.files?.images) {
+      const kept = remainingPaths ? JSON.parse(remainingPaths) : post.imagePaths;
+      const newFiles = (req.files?.images || []).map(f => f.filename);
+      post.imagePaths = [...kept, ...newFiles];
+      post.imagePath  = post.imagePaths[0] || null;
+    }
+
     await post.save();
     res.json(post);
   } catch (err) { res.status(500).json({ error: err.message }); }
