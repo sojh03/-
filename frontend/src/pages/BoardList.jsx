@@ -38,10 +38,39 @@ export default function BoardList() {
   const [scrollMode, setScrollMode] = useState(() => localStorage.getItem('boardScrollMode') || 'scroll');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState('none');
+  const [myId, setMyId] = useState(null);
+
+  const token = localStorage.getItem('token');
 
   const ITEMS_GRID = 8;
   const ITEMS_LIST = 6;
   const itemsPerPage = viewMode === 'grid' ? ITEMS_GRID : ITEMS_LIST;
+
+  // 로그인한 사용자 ID 가져오기 (찜 상태 확인용)
+  useEffect(() => {
+    if (!token) return;
+    api.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => setMyId(res.data._id))
+      .catch(() => {});
+  }, [token]);
+
+  const handleLike = async (e, postId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!token) return alert('로그인이 필요합니다');
+    try {
+      const res = await api.post(`/board/${postId}/like`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setPosts(prev => prev.map(p => {
+        if (p._id !== postId) return p;
+        const newLikes = res.data.liked
+          ? [...(p.likes || []), myId]
+          : (p.likes || []).filter(l => String(l) !== String(myId));
+        return { ...p, likes: newLikes };
+      }));
+    } catch (err) { alert('처리 실패'); }
+  };
+
+  const isLiked = (post) => myId && post.likes?.some(l => String(l) === String(myId));
 
   const fetchPosts = useCallback(async (kw = '', cat = '전체', mn = '', mx = '') => {
     try {
@@ -220,7 +249,7 @@ export default function BoardList() {
                   const imgSrc = getImageSrc(post);
                   return (
                     <Link to={`/post/${post._id}`} key={post._id}
-                      className="group glass rounded-xl overflow-hidden hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-1 bg-white">
+                      className="group glass rounded-xl overflow-hidden hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-1 bg-white relative">
                       <div className="w-full h-36 lg:h-48 bg-gray-100 relative overflow-hidden flex items-center justify-center">
                         {imgSrc
                           ? <img src={imgSrc} alt={post.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"/>
@@ -232,6 +261,14 @@ export default function BoardList() {
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                             <span className="text-white font-bold text-lg rotate-12 border-2 border-white px-2 py-1 rounded">판매 완료</span>
                           </div>
+                        )}
+                        {/* 찜 버튼 */}
+                        {token && (
+                          <button onClick={(e) => handleLike(e, post._id)}
+                            className={`absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all text-base
+                              ${isLiked(post) ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100'}`}>
+                            {isLiked(post) ? '♥' : '♡'}
+                          </button>
                         )}
                       </div>
                       <div className="p-3">
@@ -245,7 +282,7 @@ export default function BoardList() {
                           <span className="text-base font-extrabold text-primary">{post.price.toLocaleString()}원</span>
                           <div className="flex items-center gap-2 text-[10px] text-gray-400">
                             <span>👁 {post.views || 0}</span>
-                            <span>♥ {post.likes?.length || 0}</span>
+                            <span className={isLiked(post) ? 'text-red-400 font-bold' : ''}>♥ {post.likes?.length || 0}</span>
                           </div>
                         </div>
                       </div>
@@ -282,13 +319,18 @@ export default function BoardList() {
                           <span className="font-medium text-textmuted">{post.author?.userId}</span>
                           <span>·</span><span>{new Date(post.createdAt).toLocaleDateString()}</span>
                           <span>·</span><span>👁 {post.views || 0}</span>
-                          <span>♥ {post.likes?.length || 0}</span>
+                          <span className={isLiked(post) ? 'text-red-400 font-bold' : ''}>♥ {post.likes?.length || 0}</span>
                         </div>
                       </div>
-                      <div className="flex-shrink-0 text-right">
+                      <div className="flex-shrink-0 flex flex-col items-end gap-1">
                         <div className="text-base font-extrabold text-primary">{post.price.toLocaleString()}원</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{post.tradeType || ''}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5 group-hover:text-primary transition-colors">자세히 →</div>
+                        <div className="text-[10px] text-gray-400">{post.tradeType || ''}</div>
+                        {token && (
+                          <button onClick={(e) => handleLike(e, post._id)}
+                            className={`text-base px-2 py-0.5 rounded-full transition-all ${isLiked(post) ? 'text-red-500' : 'text-gray-300 hover:text-red-400'}`}>
+                            {isLiked(post) ? '♥' : '♡'}
+                          </button>
+                        )}
                       </div>
                     </Link>
                   );
