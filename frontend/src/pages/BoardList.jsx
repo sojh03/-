@@ -173,14 +173,14 @@ export default function BoardList() {
         </div>
       ) : (
         <>
-          <div className={scrollMode === 'page' ? 'min-h-[36rem]' : ''}>
+          <div className={scrollMode === 'page' ? 'min-h-[42rem]' : ''}>
             {viewMode === 'grid' ? (
               /* ─── 그리드 ─── */
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {displayPosts.map(post => (
                   <Link to={`/post/${post._id}`} key={post._id}
                     className="group glass rounded-xl overflow-hidden hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 transform hover:-translate-y-1 bg-white">
-                    <div className={`w-full bg-gray-100 relative overflow-hidden flex items-center justify-center ${scrollMode === 'page' ? 'h-36 lg:h-48' : 'h-36'}`}>
+                    <div className="w-full h-36 lg:h-48 bg-gray-100 relative overflow-hidden flex items-center justify-center">
                       {post.imagePath ? (
                         <img src={`${UPLOADS_BASE}/${post.imagePath}`} alt={post.title}
                           className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"/>
