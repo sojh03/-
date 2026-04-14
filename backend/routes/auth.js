@@ -27,6 +27,18 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// 아이디 중복 확인
+router.get('/check-id', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId || !userId.trim()) return res.status(400).json({ message: '아이디를 입력하세요' });
+    const exists = await User.findOne({ userId: userId.trim() });
+    res.json({ available: !exists });
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking userId', error: error.message });
+  }
+});
+
 // 회원가입
 router.post('/register', async (req, res) => {
   try {
