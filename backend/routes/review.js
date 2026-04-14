@@ -1,6 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const Review = require('../models/Review');
+const MannerReview = require('../models/MannerReview');
+const ChatRoom = require('../models/ChatRoom');
 const ProductPost = require('../models/ProductPost');
 const User = require('../models/User');
 
@@ -62,6 +64,55 @@ router.get('/post/:postId', async (req, res) => {
       .sort({ createdAt: -1 });
     res.json(reviews);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 매너 리뷰 작성 (추천/비추천)
+router.post('/manner', authMiddleware, async (req, res) => {
+  try {
+    const { roomId, recommend } = req.body;
+    const room = await ChatRoom.findById(roomId);
+    if (!room) return res.status(404).json({ message: '채팅방을 찾을 수 없습니다' });
+
+    const isBuyer = room.buyer.toString() === req.user.id;
+    const isSeller = room.seller.toString() === req.user.id;
+    if (!isBuyer && !isSeller) return res.status(403).json({ message: '참여자가 아닙니다' });
+
+    const post = await ProductPost.findById(room.post);
+    if (!post) return res.status(404).json({ message: '게시글을 찾을 수 없습니다' });
+    if (post.status !== 'SoldOut') return res.status(400).json({ message: '판매 완료된 거래만 후기를 남길 수 있습니다' });
+
+    const revieweeId = isBuyer ? room.seller : room.buyer;
+
+    const mannerReview = new MannerReview({
+      post: room.post,
+      reviewer: req.user.id,
+      reviewee: revieweeId,
+      recommend
+    });
+    await mannerReview.save();
+
+    // mannerTemp 업데이트: 추천 +0.5, 비추천 -0.5
+    const delta = recommend ? 0.5 : -0.5;
+    await User.findByIdAndUpdate(revieweeId, { $inc: { mannerTemp: delta } });
+
+    res.status(201).json({ message: '후기가 등록되었습니다' });
+  } catch (err) {
+    if (err.code === 11000) return res.status(400).json({ message: '이미 후기를 작성하셨습니다' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 이미 매너 리뷰를 작성했는지 확인
+router.get('/manner/check/:roomId', authMiddleware, async (req, res) => {
+  try {
+    const room = await ChatRoom.findById(req.params.roomId);
+    if (!room) return res.status(404).json({ message: '채팅방을 찾을 수 없습니다' });
+
+    const existing = await MannerReview.findOne({ post: room.post, reviewer: req.user.id });
+    res.json({ reviewed: !!existing });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

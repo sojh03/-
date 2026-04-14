@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  mannerTemp: {
+    type: Number,
+    default: 36.5,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -52,7 +52,7 @@ router.get('/rooms', authMiddleware, async (req, res) => {
     })
       .populate('buyer', 'userId')
       .populate('seller', 'userId')
-      .populate('post', 'title imagePath price')
+      .populate('post', 'title imagePath price status')
       .sort({ updatedAt: -1 });
 
     // 각 방의 안 읽은 메시지 수 계산
@@ -155,6 +155,27 @@ router.post('/:roomId/messages', authMiddleware, async (req, res) => {
 
     const populated = await msg.populate('sender', 'userId');
     res.status(201).json(populated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 판매완료 처리 (판매자만)
+router.post('/:roomId/complete', authMiddleware, async (req, res) => {
+  try {
+    const room = await ChatRoom.findById(req.params.roomId);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+    if (room.seller.toString() !== req.user.id)
+      return res.status(403).json({ message: '판매자만 판매완료 처리할 수 있습니다' });
+
+    const post = await ProductPost.findById(room.post);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    if (post.status === 'SoldOut')
+      return res.status(400).json({ message: '이미 판매완료된 상품입니다' });
+
+    post.status = 'SoldOut';
+    await post.save();
+    res.json({ message: '판매완료 처리되었습니다', buyerId: room.buyer, sellerId: room.seller, postId: room.post });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

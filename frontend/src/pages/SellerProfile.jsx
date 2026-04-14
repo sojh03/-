@@ -5,6 +5,19 @@ import { api, UPLOADS_BASE } from '../api';
 const STATUS_LABEL = { SoldOut: '판매완료', Reserved: '예약중', Hidden: '숨김', OnSale: '판매중' };
 const STATUS_COLOR = { SoldOut: 'bg-gray-200 text-gray-600', Reserved: 'bg-yellow-100 text-yellow-700', OnSale: 'bg-green-100 text-green-700', Hidden: 'bg-red-100 text-red-600' };
 
+function MannerTempBadge({ temp }) {
+  const t = parseFloat(temp) || 36.5;
+  const color = t >= 38 ? 'text-orange-500' : t >= 36.5 ? 'text-blue-500' : 'text-blue-300';
+  const label = t >= 40 ? '따뜻해요 🔥' : t >= 38 ? '좋아요 😊' : t >= 36.5 ? '보통이에요' : '차가워요 🥶';
+  return (
+    <div className="text-center">
+      <div className={`text-2xl font-bold ${color}`}>{t.toFixed(1)}°C</div>
+      <div className="text-xs text-textmuted">매너온도</div>
+      <div className="text-[10px] text-textmuted">{label}</div>
+    </div>
+  );
+}
+
 function StarRow({ rating }) {
   return (
     <span className="text-yellow-400 text-sm">
@@ -79,6 +92,7 @@ export default function SellerProfile() {
               <div className="text-2xl font-bold text-secondary">{reviews.length}</div>
               <div className="text-xs text-textmuted">받은 후기</div>
             </div>
+            <MannerTempBadge temp={user.mannerTemp ?? 36.5} />
           </div>
           {reviewAverage && (
             <div className="mt-2">

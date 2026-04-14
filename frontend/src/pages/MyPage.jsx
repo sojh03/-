@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, UPLOADS_BASE } from '../api';
 
+function MannerTempBadge({ temp }) {
+  const t = parseFloat(temp) || 36.5;
+  const color = t >= 38 ? 'text-orange-500' : t >= 36.5 ? 'text-blue-500' : 'text-blue-300';
+  const label = t >= 40 ? '따뜻해요 🔥' : t >= 38 ? '좋아요 😊' : t >= 36.5 ? '보통이에요' : '차가워요 🥶';
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5">
+      <span className={`text-lg font-extrabold ${color}`}>{t.toFixed(1)}°C</span>
+      <span className="text-xs text-textmuted">매너온도</span>
+      <span className="text-xs text-textmuted">· {label}</span>
+    </div>
+  );
+}
+
 export default function MyPage() {
   const [activeTab, setActiveTab] = useState('items');
   const [user, setUser] = useState(null);
@@ -122,6 +135,7 @@ export default function MyPage() {
             <span className="text-sm text-textmuted">가입일: {new Date(user.createdAt).toLocaleDateString()}</span>
           </div>
           <div className="text-sm text-textmuted mt-1">등록 상품 {myPosts.length}개</div>
+          <MannerTempBadge temp={user.mannerTemp ?? 36.5} />
         </div>
       </div>
 
