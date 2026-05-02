@@ -187,10 +187,10 @@ export default function BoardList() {
 
           {/* 가격 정렬 */}
           <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
-            <button onClick={() => handleSort('asc')} title="가격 낮은순"
-              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${sortOrder === 'asc' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}>가격↑</button>
             <button onClick={() => handleSort('desc')} title="가격 높은순"
-              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${sortOrder === 'desc' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}>가격↓</button>
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${sortOrder === 'desc' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}>가격↑</button>
+            <button onClick={() => handleSort('asc')} title="가격 낮은순"
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${sortOrder === 'asc' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}>가격↓</button>
           </div>
 
           {/* 뷰 */}
