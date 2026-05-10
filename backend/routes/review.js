@@ -8,12 +8,13 @@ const User = require('../models/User');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const { detectJwtForgery } = require('../middleware/attackDetector');
 
 const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'No token' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { res.status(401).json({ message: 'Token is not valid' }); }
+  catch { detectJwtForgery(req, token); res.status(401).json({ message: 'Token is not valid' }); }
 };
 
 // 후기 작성
@@ -91,9 +92,13 @@ router.post('/manner', authMiddleware, async (req, res) => {
     });
     await mannerReview.save();
 
-    // mannerTemp 업데이트: 추천 +0.5, 비추천 -0.5
-    const delta = recommend ? 0.5 : -0.5;
-    await User.findByIdAndUpdate(revieweeId, { $inc: { mannerTemp: delta } });
+    // mannerTemp 업데이트: 추천 +0.1, 비추천 -0.1
+    // $inc 대신 직접 읽어서 계산 (기존 유저가 DB에 필드가 없는 경우 36.5 기본값 사용)
+    const delta = recommend ? 0.1 : -0.1;
+    const revieweeUser = await User.findById(revieweeId);
+    const currentTemp = revieweeUser.mannerTemp ?? 36.5;
+    const newTemp = parseFloat((currentTemp + delta).toFixed(1));
+    await User.findByIdAndUpdate(revieweeId, { $set: { mannerTemp: newTemp } });
 
     res.status(201).json({ message: '후기가 등록되었습니다' });
   } catch (err) {

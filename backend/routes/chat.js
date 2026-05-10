@@ -6,6 +6,7 @@ const ProductPost = require('../models/ProductPost');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
+const { detectJwtForgery } = require('../middleware/attackDetector');
 
 const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -14,6 +15,7 @@ const authMiddleware = (req, res, next) => {
     req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch (err) {
+    detectJwtForgery(req, token);
     res.status(401).json({ message: 'Invalid token' });
   }
 };

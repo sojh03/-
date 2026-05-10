@@ -6,21 +6,46 @@ const PATTERNS = {
   'XSS':             /(<script|javascript:|onerror\s*=|onload\s*=|<iframe|eval\s*\(|document\.cookie)/i,
 };
 
-// 브루트포스 감지: IP별 로그인 실패 횟수 in-memory 추적
-const loginFailures = new Map();
+const DANGEROUS_EXT = ['.php', '.html', '.htm', '.js', '.exe', '.sh', '.bat', '.jsp', '.py', '.rb', '.pl', '.cgi'];
+
+// 인코딩 디코딩 (URL + HTML 엔티티)
+const decode = (str) => {
+  try {
+    let decoded = str;
+    for (let i = 0; i < 3; i++) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+    decoded = decoded
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/&#([0-9]+);/gi,     (_, d) => String.fromCharCode(parseInt(d, 10)))
+      .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&');
+    return decoded;
+  } catch { return str; }
+};
+
+// 일반 + 느린 브루트포스용 별도 Map
+const bfMinute = new Map(); // 1분 / 5회
+const bfHour   = new Map(); // 1시간 / 10회
 
 const detectAttacks = (req, res, next) => {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  const target = JSON.stringify(req.body) + JSON.stringify(req.query) + req.originalUrl;
+  const raw = JSON.stringify(req.body) + JSON.stringify(req.query) + req.originalUrl;
+  const decoded = decode(raw);
 
   for (const [attackType, pattern] of Object.entries(PATTERNS)) {
-    if (pattern.test(target)) {
+    const hitRaw     = pattern.test(raw);
+    const hitDecoded = !hitRaw && pattern.test(decoded);
+    if (hitRaw || hitDecoded) {
       logAttack({
-        attackType,
+        attackType: hitDecoded ? `XSS (인코딩 우회)` : attackType,
         ip,
         method: req.method,
         url: req.originalUrl,
-        payload: JSON.stringify({ body: req.body, query: req.query }).slice(0, 500),
+        payload: hitDecoded
+          ? `(원본) ${raw.slice(0, 200)} → (디코딩) ${decoded.slice(0, 200)}`
+          : JSON.stringify({ body: req.body, query: req.query }).slice(0, 500),
         ua: req.get('User-Agent'),
       });
       break;
@@ -30,29 +55,84 @@ const detectAttacks = (req, res, next) => {
   next();
 };
 
-const trackLoginFailure = (ip, userId) => {
-  const now = Date.now();
-  const key = ip;
-  const entry = loginFailures.get(key) || { count: 0, since: now, userIds: [] };
-
-  // 1분 경과 시 리셋
-  if (now - entry.since > 60000) {
-    loginFailures.set(key, { count: 1, since: now, userIds: [userId] });
-    return;
-  }
-
-  entry.count++;
-  if (!entry.userIds.includes(userId)) entry.userIds.push(userId);
-  loginFailures.set(key, entry);
-
-  if (entry.count >= 5) {
+// 악성 파일 업로드 탐지 (multer filename에서 호출)
+const detectMaliciousUpload = (req, originalname) => {
+  const ext = require('path').extname(originalname).toLowerCase();
+  if (DANGEROUS_EXT.includes(ext)) {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     logAttack({
-      attackType: 'Brute Force',
+      attackType: '악성 파일 업로드',
       ip,
-      url: '/api/auth/login',
-      payload: `실패 ${entry.count}회 (1분 내) / 시도한 ID: ${entry.userIds.join(', ')}`,
+      url: req.originalUrl,
+      payload: `파일명: ${originalname} / 확장자: ${ext}`,
+      ua: req.get('User-Agent'),
     });
   }
 };
 
-module.exports = { detectAttacks, trackLoginFailure };
+// JWT 위조 탐지 (authMiddleware catch에서 호출)
+const detectJwtForgery = (req, token) => {
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  logAttack({
+    attackType: 'JWT 위조 시도',
+    ip,
+    url: req.originalUrl,
+    payload: token ? `${token.slice(0, 80)}...` : '(토큰 없음)',
+    ua: req.get('User-Agent'),
+  });
+};
+
+// IDOR 탐지 (board.js PUT/DELETE에서 호출)
+const detectIdor = (req, requesterId, requesterName, ownerId, ownerName) => {
+  if (String(ownerId) === String(requesterId)) return;
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  logAttack({
+    attackType: 'IDOR',
+    ip,
+    url: req.originalUrl,
+    payload: `요청자: ${requesterName} / 게시글 소유자: ${ownerName}`,
+    ua: req.get('User-Agent'),
+  });
+};
+
+const trackLoginFailure = (ip, userId) => {
+  const now = Date.now();
+
+  // 1분 / 5회 브루트포스
+  const m = bfMinute.get(ip) || { count: 0, since: now, userIds: [] };
+  if (now - m.since > 60000) {
+    bfMinute.set(ip, { count: 1, since: now, userIds: [userId] });
+  } else {
+    m.count++;
+    if (!m.userIds.includes(userId)) m.userIds.push(userId);
+    bfMinute.set(ip, m);
+    if (m.count >= 5) {
+      logAttack({
+        attackType: 'Brute Force',
+        ip,
+        url: '/api/auth/login',
+        payload: `실패 ${m.count}회 (1분 내) / 시도한 ID: ${m.userIds.join(', ')}`,
+      });
+    }
+  }
+
+  // 1시간 / 10회 느린 브루트포스
+  const h = bfHour.get(ip) || { count: 0, since: now, userIds: [] };
+  if (now - h.since > 3600000) {
+    bfHour.set(ip, { count: 1, since: now, userIds: [userId] });
+  } else {
+    h.count++;
+    if (!h.userIds.includes(userId)) h.userIds.push(userId);
+    bfHour.set(ip, h);
+    if (h.count >= 10) {
+      logAttack({
+        attackType: 'Brute Force (느린 시도)',
+        ip,
+        url: '/api/auth/login',
+        payload: `실패 ${h.count}회 (1시간 내) / 시도한 ID: ${h.userIds.join(', ')}`,
+      });
+    }
+  }
+};
+
+module.exports = { detectAttacks, detectMaliciousUpload, detectJwtForgery, detectIdor, trackLoginFailure };

@@ -7,13 +7,17 @@ const fs = require('fs');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
+const { detectMaliciousUpload, detectJwtForgery, detectIdor } = require('../middleware/attackDetector');
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+  filename: (req, file, cb) => {
+    detectMaliciousUpload(req, file.originalname);
+    cb(null, Date.now() + '-' + file.originalname);
+  }
 });
 // [VULN] File Upload: fileFilter 없음 — .html/.js 등 모든 파일 허용
 const upload = multer({ storage });
@@ -22,7 +26,7 @@ const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'No token' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { res.status(401).json({ message: 'Token is not valid' }); }
+  catch { detectJwtForgery(req, token); res.status(401).json({ message: 'Token is not valid' }); }
 };
 
 const optionalAuth = (req, res, next) => {
@@ -98,9 +102,10 @@ router.put('/:id', authMiddleware,
   upload.fields([{ name: 'images', maxCount: 5 }]),
   async (req, res) => {
   try {
-    const post = await ProductPost.findById(req.params.id);
+    const post = await ProductPost.findById(req.params.id).populate('author', 'userId');
     if (!post) return res.status(404).json({ message: 'Post not found' });
-    // [VULN] IDOR: 소유권 검사 없음
+    // [VULN] IDOR: 소유권 검사 없음 — 탐지만 하고 차단하지 않음
+    detectIdor(req, req.user.id, req.user.userId, post.author._id, post.author.userId);
     const { title, content, price, status, category, condition, tradeType, remainingPaths } = req.body;
     if (title !== undefined)     post.title     = title;
     if (content !== undefined)   post.content   = content;
@@ -126,9 +131,10 @@ router.put('/:id', authMiddleware,
 // ── 게시글 삭제 ───────────────────────────────────────
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const post = await ProductPost.findById(req.params.id);
+    const post = await ProductPost.findById(req.params.id).populate('author', 'userId');
     if (!post) return res.status(404).json({ message: 'Post not found' });
-    // [VULN] IDOR: 소유권 검사 없음
+    // [VULN] IDOR: 소유권 검사 없음 — 탐지만 하고 차단하지 않음
+    detectIdor(req, req.user.id, req.user.userId, post.author._id, post.author.userId);
     await ProductPost.deleteOne({ _id: post._id });
     res.json({ message: 'Post deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }

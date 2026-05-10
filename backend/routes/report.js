@@ -5,11 +5,13 @@ const Report = require('../models/Report');
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
+const { detectJwtForgery } = require('../middleware/attackDetector');
+
 const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'No token' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { res.status(401).json({ message: 'Token is not valid' }); }
+  catch { detectJwtForgery(req, token); res.status(401).json({ message: 'Token is not valid' }); }
 };
 
 const adminOnly = (req, res, next) => {

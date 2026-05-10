@@ -5,7 +5,7 @@ const User = require('../models/User');
 const ProductPost = require('../models/ProductPost');
 const Review = require('../models/Review');
 const { logAuth } = require('../middleware/logger');
-const { trackLoginFailure } = require('../middleware/attackDetector');
+const { trackLoginFailure, detectJwtForgery } = require('../middleware/attackDetector');
 
 const router = express.Router();
 // [VULN] JWT Weak Secret: 추측하기 쉬운 단순 문자열 사용
@@ -25,6 +25,7 @@ const authMiddleware = (req, res, next) => {
     req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch (err) {
+    detectJwtForgery(req, token);
     res.status(401).json({ message: 'Token is not valid' });
   }
 };
