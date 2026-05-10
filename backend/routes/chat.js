@@ -1,24 +1,11 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const ChatRoom = require('../models/ChatRoom');
 const Message = require('../models/Message');
 const ProductPost = require('../models/ProductPost');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
-const { detectJwtForgery } = require('../middleware/attackDetector');
 
-const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ message: 'No token' });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch (err) {
-    detectJwtForgery(req, token);
-    res.status(401).json({ message: 'Invalid token' });
-  }
-};
+const { authMiddleware } = require('../middleware/auth');
 
 // 채팅방 시작
 router.post('/start', authMiddleware, async (req, res) => {

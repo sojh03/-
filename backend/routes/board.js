@@ -6,8 +6,8 @@ const path = require('path');
 const fs = require('fs');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
-const { detectMaliciousUpload, detectJwtForgery, detectIdor } = require('../middleware/attackDetector');
+const { detectMaliciousUpload, detectIdor } = require('../middleware/attackDetector');
+const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
@@ -21,13 +21,6 @@ const storage = multer.diskStorage({
 });
 // [VULN] File Upload: fileFilter 없음 — .html/.js 등 모든 파일 허용
 const upload = multer({ storage });
-
-const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ message: 'No token' });
-  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { detectJwtForgery(req, token); res.status(401).json({ message: 'Token is not valid' }); }
-};
 
 const optionalAuth = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');

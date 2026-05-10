@@ -1,5 +1,4 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const Review = require('../models/Review');
 const MannerReview = require('../models/MannerReview');
 const ChatRoom = require('../models/ChatRoom');
@@ -7,15 +6,8 @@ const ProductPost = require('../models/ProductPost');
 const User = require('../models/User');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
-const { detectJwtForgery } = require('../middleware/attackDetector');
 
-const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ message: 'No token' });
-  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { detectJwtForgery(req, token); res.status(401).json({ message: 'Token is not valid' }); }
-};
+const { authMiddleware } = require('../middleware/auth');
 
 // 후기 작성
 router.post('/', authMiddleware, async (req, res) => {

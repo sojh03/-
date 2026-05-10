@@ -6,10 +6,9 @@ const ProductPost = require('../models/ProductPost');
 const Review = require('../models/Review');
 const { logAuth } = require('../middleware/logger');
 const { trackLoginFailure, detectJwtForgery } = require('../middleware/attackDetector');
+const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
-// [VULN] JWT Weak Secret: 추측하기 쉬운 단순 문자열 사용
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 // 프로필 이미지 업로드
 const storage = multer.diskStorage({
@@ -17,18 +16,6 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, 'profile-' + Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
-
-const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch (err) {
-    detectJwtForgery(req, token);
-    res.status(401).json({ message: 'Token is not valid' });
-  }
-};
 
 // 아이디 중복 확인
 router.get('/check-id', async (req, res) => {
@@ -198,15 +185,8 @@ router.get('/users/:userId', async (req, res) => {
 });
 
 // ── 관리자 전용 미들웨어 ──────────────────────────────
-const adminOnly = async (req, res, next) => {
+const adminOnly = (req, res, next) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ message: 'Admins only' });
-  // 권한 위조 탐지: 토큰의 role이 Admin이지만 DB가 다른 경우
-  try {
-    const dbUser = await User.findById(req.user.id).select('role').lean();
-    if (!dbUser || dbUser.role !== 'Admin') {
-      detectJwtForgery(req, null, `권한 위조: 토큰 role=Admin, DB role=${dbUser?.role || '없음'} (userId: ${req.user.userId})`);
-    }
-  } catch {}
   next();
 };
 
