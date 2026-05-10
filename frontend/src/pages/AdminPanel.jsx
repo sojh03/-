@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
 export default function AdminPanel() {
-  const [tab, setTab] = useState('users'); // 'users' | 'reports'
+  const [tab, setTab] = useState('users'); // 'users' | 'reports' | 'logs'
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [logTab, setLogTab] = useState('attack'); // 'attack' | 'auth'
+  const [logLoading, setLogLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resetTarget, setResetTarget] = useState(null); // { id, userId }
   const [resetPw, setResetPw] = useState('');
@@ -19,6 +22,20 @@ export default function AdminPanel() {
     fetchUsers();
     fetchReports();
   }, []);
+
+  const fetchLogs = async (type = logTab) => {
+    setLogLoading(true);
+    try {
+      const res = await api.get(`/logs/${type}`, { headers });
+      setLogs(res.data);
+    } catch { /* ignore */ } finally {
+      setLogLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'logs') fetchLogs(logTab);
+  }, [tab, logTab]);
 
   const fetchUsers = async () => {
     try {
@@ -62,6 +79,17 @@ export default function AdminPanel() {
       alert(`${resetTarget.userId}의 비밀번호가 초기화되었습니다`);
       setResetTarget(null);
       setResetPw('');
+    } catch (err) {
+      alert(err.response?.data?.message || '처리 실패');
+    }
+  };
+
+  const handleResetManner = async (user) => {
+    if (!window.confirm(`${user.userId}의 매너온도를 36.5°C로 초기화하시겠습니까?`)) return;
+    try {
+      const res = await api.put(`/auth/admin/users/${user._id}/reset-manner`, {}, { headers });
+      alert(res.data.message);
+      fetchUsers();
     } catch (err) {
       alert(err.response?.data?.message || '처리 실패');
     }
@@ -138,6 +166,10 @@ export default function AdminPanel() {
             </span>
           )}
         </button>
+        <button onClick={() => setTab('logs')}
+          className={`px-6 py-3 text-sm font-semibold border-b-2 transition-colors ${tab === 'logs' ? 'border-primary text-primary' : 'border-transparent text-textmuted hover:text-textmain'}`}>
+          🛡 공격 로그
+        </button>
       </div>
 
       {/* 신고 관리 탭 */}
@@ -181,6 +213,88 @@ export default function AdminPanel() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 공격 로그 탭 */}
+      {tab === 'logs' && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5">
+              {[['attack', '⚠️ 공격 탐지'], ['auth', '🔑 인증 이벤트']].map(([key, label]) => (
+                <button key={key} onClick={() => setLogTab(key)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${logTab === key ? 'bg-white shadow text-primary' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => fetchLogs(logTab)} className="text-xs text-primary hover:underline">새로고침</button>
+            <span className="text-xs text-textmuted">최근 {logs.length}건</span>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            {logLoading ? (
+              <div className="text-center py-16 text-textmuted">로딩 중...</div>
+            ) : logs.length === 0 ? (
+              <div className="text-center py-16 text-textmuted">기록이 없습니다</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 text-textmuted uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3 text-left">시간</th>
+                      <th className="px-4 py-3 text-left">IP</th>
+                      {logTab === 'attack' && <th className="px-4 py-3 text-left">공격 유형</th>}
+                      {logTab === 'auth'   && <th className="px-4 py-3 text-left">이벤트</th>}
+                      {logTab === 'auth'   && <th className="px-4 py-3 text-left">아이디</th>}
+                      <th className="px-4 py-3 text-left">URL</th>
+                      {logTab === 'attack' && <th className="px-4 py-3 text-left">페이로드</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 font-mono">
+                    {logs.map((log, i) => (
+                      <tr key={i} className={`hover:bg-gray-50 transition-colors ${
+                        logTab === 'attack' ? 'bg-red-50/30' :
+                        log.event === 'LOGIN_SUCCESS' ? 'bg-green-50/30' : 'bg-orange-50/30'
+                      }`}>
+                        <td className="px-4 py-2.5 text-textmuted whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString('ko-KR')}
+                        </td>
+                        <td className="px-4 py-2.5 font-bold text-textmain whitespace-nowrap">{log.ip}</td>
+                        {logTab === 'attack' && (
+                          <td className="px-4 py-2.5">
+                            <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                              log.attackType === 'NoSQL Injection' ? 'bg-red-100 text-red-700' :
+                              log.attackType === 'XSS'            ? 'bg-purple-100 text-purple-700' :
+                              log.attackType === 'Path Traversal' ? 'bg-orange-100 text-orange-700' :
+                              log.attackType === 'Brute Force'    ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>{log.attackType}</span>
+                          </td>
+                        )}
+                        {logTab === 'auth' && (
+                          <td className="px-4 py-2.5">
+                            <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                              log.event === 'LOGIN_SUCCESS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>{log.event === 'LOGIN_SUCCESS' ? '로그인 성공' : '로그인 실패'}</span>
+                          </td>
+                        )}
+                        {logTab === 'auth' && (
+                          <td className="px-4 py-2.5 text-textmain">{log.userId}</td>
+                        )}
+                        <td className="px-4 py-2.5 text-textmuted">{log.url || '-'}</td>
+                        {logTab === 'attack' && (
+                          <td className="px-4 py-2.5 text-red-600 max-w-xs truncate" title={log.payload}>
+                            {log.payload}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -249,6 +363,11 @@ export default function AdminPanel() {
                         <button onClick={() => { setResetTarget({ id: user._id, userId: user.userId }); setResetPw(''); }}
                           className="px-2.5 py-1 rounded text-xs font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
                           PW 초기화
+                        </button>
+                        {/* 매너온도 초기화 */}
+                        <button onClick={() => handleResetManner(user)}
+                          className="px-2.5 py-1 rounded text-xs font-bold bg-blue-50 text-blue-500 hover:bg-blue-100 transition-colors">
+                          🌡 온도 초기화
                         </button>
                         {/* 삭제 — 관리자·자신 제외 */}
                         {!isAdmin && !isMe && (

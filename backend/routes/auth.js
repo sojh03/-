@@ -4,6 +4,8 @@ const multer = require('multer');
 const User = require('../models/User');
 const ProductPost = require('../models/ProductPost');
 const Review = require('../models/Review');
+const { logAuth } = require('../middleware/logger');
+const { trackLoginFailure } = require('../middleware/attackDetector');
 
 const router = express.Router();
 // [VULN] JWT Weak Secret: 추측하기 쉬운 단순 문자열 사용
@@ -84,6 +86,9 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ userId: userId, password: password });
     if (!user) {
       console.log(`[DEBUG] Login failed: User ${userId} not found or password mismatch.`);
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      logAuth({ event: 'LOGIN_FAIL', ip, userId: String(userId) });
+      trackLoginFailure(ip, String(userId));
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     if (user.isBanned) {
@@ -96,6 +101,8 @@ router.post('/login', async (req, res) => {
       JWT_SECRET
     );
     console.log(`[DEBUG] Login success for: ${userId}`);
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    logAuth({ event: 'LOGIN_SUCCESS', ip, userId: user.userId, role: user.role });
     res.json({ token, role: user.role, userId: user.userId, profileImage: user.profileImage || '' });
   } catch (error) {
     console.error('[DEBUG] Login Error:', error);
@@ -248,6 +255,19 @@ router.put('/admin/users/:id/reset-password', authMiddleware, adminOnly, async (
     user.password = newPassword;
     await user.save();
     res.json({ message: '비밀번호가 초기화되었습니다' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 매너온도 초기화
+router.put('/admin/users/:id/reset-manner', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.mannerTemp = 36.5;
+    await user.save();
+    res.json({ message: `${user.userId}의 매너온도가 36.5°C로 초기화되었습니다` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

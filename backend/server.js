@@ -21,17 +21,25 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, 'uploads')));
 
-const authRoutes  = require('./routes/auth');
-const boardRoutes = require('./routes/board');
-const chatRoutes  = require('./routes/chat');
+const { logAccess } = require('./middleware/logger');
+const { detectAttacks } = require('./middleware/attackDetector');
+
+const authRoutes   = require('./routes/auth');
+const boardRoutes  = require('./routes/board');
+const chatRoutes   = require('./routes/chat');
 const reviewRoutes = require('./routes/review');
 const reportRoutes = require('./routes/report');
+const logsRoutes   = require('./routes/logs');
 
-app.use('/api/auth',   authRoutes);
-app.use('/api/board',  boardRoutes);
-app.use('/api/chat',   chatRoutes);
+app.use(logAccess);
+app.use(detectAttacks);
+
+app.use('/api/auth',    authRoutes);
+app.use('/api/board',   boardRoutes);
+app.use('/api/chat',    chatRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/logs',    logsRoutes);
 
 app.get('/health', (req, res) => res.send('OK'));
 
