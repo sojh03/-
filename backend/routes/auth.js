@@ -198,8 +198,15 @@ router.get('/users/:userId', async (req, res) => {
 });
 
 // ── 관리자 전용 미들웨어 ──────────────────────────────
-const adminOnly = (req, res, next) => {
+const adminOnly = async (req, res, next) => {
   if (req.user?.role !== 'Admin') return res.status(403).json({ message: 'Admins only' });
+  // 권한 위조 탐지: 토큰의 role이 Admin이지만 DB가 다른 경우
+  try {
+    const dbUser = await User.findById(req.user.id).select('role').lean();
+    if (!dbUser || dbUser.role !== 'Admin') {
+      detectJwtForgery(req, null, `권한 위조: 토큰 role=Admin, DB role=${dbUser?.role || '없음'} (userId: ${req.user.userId})`);
+    }
+  } catch {}
   next();
 };
 

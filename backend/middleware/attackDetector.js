@@ -1,5 +1,11 @@
 const { logAttack } = require('./logger');
 
+// IPv4-mapped IPv6 제거, X-Forwarded-For 우선
+const getIp = (req) => {
+  const raw = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+  return raw.split(',')[0].trim().replace(/^::ffff:/, '');
+};
+
 const PATTERNS = {
   'NoSQL Injection': /(\$ne|\$gt|\$lt|\$gte|\$lte|\$in|\$nin|\$where|\$regex|\$or|\$and|\$not|\$nor)/,
   'Path Traversal':  /(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\/|\.\.%2f|%252e%252e)/i,
@@ -30,7 +36,7 @@ const bfMinute = new Map(); // 1분 / 5회
 const bfHour   = new Map(); // 1시간 / 10회
 
 const detectAttacks = (req, res, next) => {
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const ip = getIp(req);
   const raw = JSON.stringify(req.body) + JSON.stringify(req.query) + req.originalUrl;
   const decoded = decode(raw);
 
@@ -59,7 +65,7 @@ const detectAttacks = (req, res, next) => {
 const detectMaliciousUpload = (req, originalname) => {
   const ext = require('path').extname(originalname).toLowerCase();
   if (DANGEROUS_EXT.includes(ext)) {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ip = getIp(req);
     logAttack({
       attackType: '악성 파일 업로드',
       ip,
@@ -70,14 +76,14 @@ const detectMaliciousUpload = (req, originalname) => {
   }
 };
 
-// JWT 위조 탐지 (authMiddleware catch에서 호출)
-const detectJwtForgery = (req, token) => {
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+// JWT 위조 탐지 (authMiddleware catch 또는 권한 위조 탐지 시 호출)
+const detectJwtForgery = (req, token, detail = null) => {
+  const ip = getIp(req);
   logAttack({
     attackType: 'JWT 위조 시도',
     ip,
     url: req.originalUrl,
-    payload: token ? `${token.slice(0, 80)}...` : '(토큰 없음)',
+    payload: detail || (token ? `${token.slice(0, 80)}...` : '(토큰 없음)'),
     ua: req.get('User-Agent'),
   });
 };
@@ -85,7 +91,7 @@ const detectJwtForgery = (req, token) => {
 // IDOR 탐지 (board.js PUT/DELETE에서 호출)
 const detectIdor = (req, requesterId, requesterName, ownerId, ownerName) => {
   if (String(ownerId) === String(requesterId)) return;
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const ip = getIp(req);
   logAttack({
     attackType: 'IDOR',
     ip,
